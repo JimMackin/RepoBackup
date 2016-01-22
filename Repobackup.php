@@ -1,7 +1,7 @@
 <?php
 
 require_once 'vendor/autoload.php';
-
+require_once 'RepoSources.php';
 $repoBackup = new RepoBackup();
 $repoBackup->run();
 
@@ -12,61 +12,68 @@ class RepoBackup{
   private $repositoriesFolder = "repositories/";
 
   public function __construct(){
-    $this->user = "JimMackin";
-    $token = "Redacted";
-    $this->client = getGitHubClient($token);
     $this->git = new PHPGit\Git();
-    $this->cwd = getcwd()."/Backups/".$this->user."/";
+    $this->cwd = getcwd()."/Backups/";
+  }
+
+  function getInput($message){
+    echo $message;
+    return trim(fgets(STDIN));
   }
 function run(){
-  $this->backupRepositories();
-  $this->backupGists();
+  echo "Backing up\n";
+
+  $line = $this->getInput("Backup GitHub [y/n]:");
+  if(strtolower($line) == 'y'){
+    $gitSource = new GitHubSource();
+    $user = $this->getInput("GitHub Username:");
+    $token = $this->getInput("GitHub API Token:");
+    $gitSource->setCredentials(array('user'=>$user,'token'=>$token));
+    $this->backupRepositories($gitSource,'GitHub/'.$user."/");
+  }
+  $line = $this->getInput("Backup BitBucket [y/n]:");
+  if(strtolower($line) == 'y'){
+    $user = $this->getInput("BitBucket Username:");
+    $pass = $this->getInput("BitBucket Pass:");
+    $bbSource = new BitbucketSource();
+    $bbSource->setCredentials(array('user'=>$user,'pass'=>$pass));
+    $this->backupRepositories($bbSource,'BitBucket/'.$user.'/');
+  }
 }
-  function backupRepositories(){
-    /*if(!is_dir($this->repositoriesFolder)){
-      mkdir($this->repositoriesFolder);
-    }*/
-    $this->repositories = $this->client->api('user')->repositories($this->user);
-    foreach($this->repositories as $repository){
-//print_r($repository);
-echo "Pulling ".$repository['full_name']."\n";
-$pullUrl = $repository['clone_url'];
-$repoName = $repository['name'];
-$this->backupRepo($pullUrl, $this->cwd."/".$this->repositoriesFolder.$repoName);
+  function backupRepositories(RepoSource $src, $path){
+    $repositories = $src->getRepositories();
+    foreach($repositories as $repository){
+      echo "Pulling ".$repository['name']."\n";
+      $this->backupRepo($repository,$path);
     }
 
   }
-  function backupGists(){
-    /*if(!is_dir($this->gistsFolder)){
-      mkdir($this->gistsFolder);
-    }*/
-    $this->gists = $this->client->api('gists')->all();
-    foreach($this->gists as $gist){
-        $desc = $gist['description'];
-       $pullUrl = $gist['git_pull_url'];
-       $repoName = $gist['id'];
-        //print_r($gist);
-        echo "Pulling $desc\n";
-        $this->backupRepo($pullUrl, $this->cwd."/".$this->gistsFolder.$repoName);
-    }
-  }
-  function backupRepo($cloneURL, $folder){
+
+  function backupRepo($repository,$path){
+    $repoName = $repository['name'];
+    $cloneURL = $repository['clone_url'];
+    $folder = $this->cwd."/".$path.$repoName;
     echo "Backup Repo: $cloneURL $folder\n";
-    if(!file_exists($folder . DIRECTORY_SEPARATOR . '.git')){
-      $this->git->clone($cloneURL, $folder);
-   }
-    $this->git->setRepository($folder);
-    $this->git->fetch->all();
+    if($repository['type'] == 'git'){
+      if(!file_exists($folder . DIRECTORY_SEPARATOR . '.git')){
+        echo "Calling $cloneURL\n";
+         $this->git->clone($cloneURL, $folder);
+      }
+       $this->git->setRepository($folder);
+       $this->git->fetch->all();
+    }elseif($repository['type'] == 'hg'){
+      $output = array();
+      $return = 0;
+      if(!file_exists($folder . DIRECTORY_SEPARATOR . '.hg')){
+        echo "Calling "."hg clone ".$cloneURL. " ".$folder."\n";
+        exec ("hg clone ".$cloneURL. " ".$folder, $output , $return);
+      }
+      echo "Calling "."hg pull -R ".$folder."\n";
+      exec ("hg pull -R ".$folder, $output , $return);
+    }else{
+      echo "Unrecognised VC type!\n";
+    }
+
   }
 
-}
-
-
-
-function getGitHubClient($token){
-  $client = new \Github\Client(
-      new \Github\HttpClient\CachedHttpClient(array('cache_dir' => '/tmp/github-api-cache'))
-  );
-  $client->authenticate($token, Github\Client::AUTH_HTTP_TOKEN);
-  return $client;
 }

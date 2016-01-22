@@ -1,6 +1,7 @@
 {
     "require": {
         "knplabs/github-api": "~1.4",
-        "kzykhys/git": "^0.1.2"
+        "kzykhys/git": "^0.1.2",
+        "gentle/bitbucket-api": "^0.8.0"
     }
 }
