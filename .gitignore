@@ -2,3 +2,4 @@ repositories/
 gists/
 vendor/
 Backups/
+composer.lock
