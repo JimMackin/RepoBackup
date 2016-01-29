@@ -25,10 +25,6 @@ while(!empty($list['next'])){
 $ret = array();
 foreach($repos as $repo){
   $url = $repo['links']['clone'][1]['href'];
-  //$urlBits = parse_url($url);
-  //$url = $urlBits['scheme']."://".$urlBits['user'].":".$this->pass."@".$urlBits['host'].$urlBits['path'];
-  //print_r($url);
-  //die();
   $ret[] = array('name'=>$repo['name'], 'clone_url' => $url,'type'=>$repo['scm']);
 }
 
